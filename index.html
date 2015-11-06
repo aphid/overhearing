@@ -1,0 +1,414 @@
+<!doctype html>
+<html>
+
+<head>
+  <title>u n r e l i a b l e</title>
+  <script src="fingerprint2.js"></script>
+  <script src="meyda/meyda.min.js"></script>
+  <script src="popcorn-complete.min.js"></script>
+  <link rel="stylesheet" href="//cdn.jsdelivr.net/font-hack/2.015/css/hack.min.css">
+
+  <script src="../lib/socket.io-1.3.7.js"></script>
+  <style>
+    body {
+      font-family: Hack, monospace;
+    }
+    
+    #mapping {
+      position: relative;
+      width: 80vw;
+      height: 60px;
+      border: 1px solid black;
+      background-color: lightgray;
+    }
+    
+    canvas {
+      image-rendering: pixelated;
+      width: 80vw;
+    }
+    
+    .bar {
+      position: absolute;
+      top: 0;
+      height: 100%;
+      min-width: 1px;
+      background-color: rgba(0, 0, 0, 0.3);
+    }
+    
+    #curse {
+      z-index: 99;
+      background-color: red;
+    }
+  </style>
+</head>
+
+<body>
+  <section id="auth">
+    <div id="welcome">&nbsp;</div>
+
+  </section>
+  <section id="content">
+    <audio src="intel020508.ogg" crossorigin="anonymous" controls></audio>
+    <video src="" <div id="mapping">
+      <div class="bar" id="curse"></div>
+      </div>
+
+      <h4>2007-08-01T21:30:00.000Z</h4>
+
+      <h3>Nomination of Donald M. Kerr to be Principal Deputy Director of National Intelligence</h3>
+      <div id="data">
+        <div id="message">Processing...</div>
+        <canvas id="graph" width="800" height="200"></canvas>
+        <div>currentTime: <span class="data" id="pos">0</span> interval: <span id="interval"> </span>
+        </div>
+
+        <div>peak: <span class="data" id="highest">0</span>
+        </div>
+        <div>rms: <span class="data" id="engtxt">0</span>
+        </div>
+        <div>threshold: <span id="threshold"></span>
+        </div>
+        <div>silencesCollected: session: <span class="data" id="gaps">0</span> total: <span id="totalSil">waiting...</span>
+        </div>
+      </div>
+  </section>
+</body>
+
+
+<script>
+  var interrogator;
+
+
+  var canvas = document.getElementById('graph');
+  var ctx = canvas.getContext('2d');
+  var startTime;
+  var transmitQueue = [];
+  var tempTime = 0;
+  var tempdur;
+  var totalSilences;
+  var mode = "rough"; //fine/ultrafine
+  var attention = "focus";
+  var duration;
+  ctx.fillStyle = "rgb(6, 6, 80)";
+  ctx.translate(0, canvas.height);
+  ctx.scale(1, -1);
+
+
+  var socket;
+
+
+
+
+  function mapSilence(start, end) {
+    var bar = document.createElement('div');
+    bar.classList.add('bar');
+    var dur = end - start;
+    var pct = (dur / duration) * 100;
+    console.log('silence is ' + pct);
+    console.log("s " + start + " dur " + duration);
+    var left = start / duration;
+    bar.style.left = left * 100 + "%";
+    bar.style.width = pct + "%";
+    document.querySelector('#mapping').appendChild(bar);
+  }
+
+
+  function drawBar(i, h) {
+    ctx.fillRect((i), 0, 1, h);
+  }
+
+
+  window.onblur = function () {
+    attention = "blur";
+  };
+  window.onfocus = function () {
+    attention = "focus";
+  };
+  var localGaps = 0;
+  var interval = 8; //seconds
+  var rmsThreshold = 0.05; //in whatever RMS are measured in
+  var gapThreshold = 0.05; //seconds
+  var audioCtx = new(window.AudioContext || window.webkitAudioContext)();
+  var source = audioCtx.createMediaElementSource(document.querySelector('audio'));
+  engs = [];
+  rollofs = [];
+  //var gainNode = audioCtx.createGain();
+  //source.connect(gainNode);
+  source.connect(audioCtx.destination);
+
+  var meyda = new Meyda(audioCtx, source, 512);
+  var aud = Popcorn('audio');
+  var stream = aud.media.src.split('/').pop().replace('.ogg', '');
+  var last = 0;
+  var postxt = document.querySelector('#pos');
+  var engtxt = document.querySelector('#engtxt');
+  var roltxt = document.querySelector('#roltxt');
+  var gapstxt = document.querySelector('#gaps');
+  var totalsil = document.querySelector('#totalSil');
+
+  var lastgap = document.querySelector('#lastgap');
+  var msg = document.querySelector('#message');
+  var inttxt = document.querySelector('#interval');
+  var threshtxt = document.querySelector('#threshold');
+  var lasttrackid;
+  var renderEngs = function () {
+    ctx.clearRect(0, 0, canvas.width, canvas.height);
+
+    for (var i = 0; i < engs.length; i++) {
+      if (engs[i] > document.querySelector('#highest').textContent) {
+        document.querySelector('#highest').textContent = engs[i];
+      }
+      if (engs[i] < rmsThreshold) {
+        ctx.fillStyle = "rgb(255, 255, 0)";
+      } else {
+        ctx.fillStyle = "rgb(255, 128, 0)";
+      }
+      drawBar(i, engs[i] * 800);
+    }
+  };
+
+
+  var seekFwd = function () {
+    aud.play(tempTime);
+    tempTime = tempTime + interval;
+    requestAnimationFrame(frametest);
+  };
+  var stop = false;
+  var gaps = [];
+  var tempGap = {};
+
+  function exactStart(time) {
+    engs = [];
+    mode = "findStart";
+    msg.textContent = "Seeking first vocalization: fine";
+    if (time) {
+      tempTime = (time - interval) - 8;
+    }
+    interval = 0.001;
+    rmsThreshold = 0.03;
+  }
+
+
+  var checkInterrogator = function (id) {
+    /*
+        var params = "mode=auth&interrogator=" + id;
+        var xhr = new XMLHttpRequest();
+        xhr.open('POST', 'interrogate.php', true);
+        xhr.setRequestHeader("Content-type", "application/x-www-form-urlencoded");
+        xhr.onload = function (e) {
+          var amsg;
+          if (this.status == 200) {
+            var resp = JSON.parse(this.responseText);
+            console.log(resp);
+            if (resp.response == "success") {
+              if (resp.visits > 1) {
+                amsg = "Welcome back, " + interrogator;
+                tempTime = Math.random() * 11453;
+              } else {
+                amsg = "Welcome, " + interrogator;
+              }
+              document.querySelector("#welcome").textContent = amsg;
+
+            } else {
+              alert("Authentication Error");
+              document.querySelector("#welcome").textContent = "Authentication Failed, your IP address has been logged.";
+
+            }
+
+            //console.log(this.responseText);
+          }
+        };
+        xhr.send(params);
+    */
+  };
+
+
+  function setupEvents() {
+    socket.on('toDate', function (things) {
+      //console.log(things);
+      //    JSON.parse(things);
+      things = JSON.parse(things);
+      console.log(things.length);
+
+      for (thing of things) {
+        if (thing.attention === "focus") {
+          console.log("MAPPING THING");
+          console.log(thing);
+          mapSilence(thing.start, thing.end)
+        }
+      }
+
+    });
+
+    socket.on('quiet', function (things) {
+      console.log('chachachachanges');
+      console.log(things);
+      if (things.attention === "focus") {
+        mapSilence(things.start, things.end)
+      }
+    });
+  }
+
+
+  aud.on('loadedmetadata', function () {
+    duration = aud.duration();
+    socket = io.connect("http://localhost:3000");
+    //tempTime = Math.random() * aud.duration();
+
+    setupEvents();
+    var fp = new Fingerprint2();
+    fp.get(function (result) {
+      console.log(result);
+      interrogator = result;
+      socket.emit('authenticate', {
+        'interrogator': result,
+        'hearing': 'intel020508'
+      });
+      checkInterrogator(result);
+    });
+    document.querySelector("#content").style.display = "block";
+
+    aud.off('loadedmetadata');
+    msg.textContent = "Seeking first vocalization: rough";
+    seekFwd();
+  });
+
+
+  aud.on('seeked', function () {
+    var curse = document.querySelector("#curse");
+    curse.style.left = (aud.currentTime() / duration) * 100 + "%";
+  });
+
+
+
+  function frametest() {
+
+    if (stop === true) {
+      aud.pause();
+
+      return false;
+    }
+
+    var eng = meyda.get('rms');
+    //var rolloff = meyda.get('spectralRolloff');
+    if (engtxt.textContent != eng) {
+      aud.pause();
+      engtxt.textContent = eng;
+      //roltxt.textContent = rolloff;
+      inttxt.textContent = (interval * 1000) + "ms";
+      threshtxt.textContent = rmsThreshold + "/" + (gapThreshold * 1000) + "ms";
+      engs.push(eng);
+      if (engs.length > 800) {
+        engs.shift();
+      }
+      renderEngs();
+      postxt.textContent = aud.currentTime() + "s";
+      if (eng < rmsThreshold) {
+        engtxt.classList.add('low');
+        gap(aud.currentTime());
+
+        //store this data
+      } else {
+        if (mode === "rough") {
+          console.log("wat.");
+          console.log(aud.currentTime());
+          exactStart(aud.currentTime());
+          console.log(interval);
+        } else if (mode === "findStart") {
+          console.log(eng + " " + aud.currentTime());
+          startTime = aud.currentTime();
+          engs = [];
+          rolloffs = [];
+          msg.textContent = "Finding silences";
+          mode = "medium";
+          tempGap = {};
+          interval = 0.003;
+        } else if (mode === "medium") {
+          notGap(aud.currentTime());
+
+        }
+        engtxt.classList.remove('low');
+      }
+      requestAnimationFrame(seekFwd);
+      /*var to = window.setTimeout(function () {
+        seekFwd();
+      }, 70);*/
+    } else {
+      requestAnimationFrame(frametest);
+
+    }
+  }
+
+
+
+  var gap = function (time) {
+    if (!tempGap.start) {
+      tempGap.start = time;
+    }
+  };
+
+  var transmitGap = function (gap) {
+    console.log(attention);
+    socket.emit('intel', {
+      'type': 'silence',
+      'start': gap.start,
+      'end': gap.end,
+      'attention': attention
+    });
+  };
+
+
+
+  var notGap = function (time) {
+    if (tempGap.start) {
+      tempGap.end = time;
+      var difference = tempGap.end - tempGap.start;
+      if (difference >= gapThreshold) {
+        transmitGap(tempGap);
+        localGaps++;
+        gapstxt.textContent = localGaps;
+        totalsil.textContent = totalSilences;
+        lastgap.textContent = difference;
+      }
+      tempGap = {};
+    }
+  };
+
+  aud.on("ended", function () {
+    stop = true;
+    //gaps = shuffleArray(gaps);
+    //playSilence();
+  });
+
+  var lastgap = 0;
+
+
+  var playSilence = function (index) {
+    if (!index) {
+      index = 0;
+    }
+    msg.textContent = "Playing " + index + "/" + gaps.length;
+    var agap = gaps[index || 0];
+    console.log(agap);
+    aud.removeTrackEvent(lasttrackid);
+    aud.code({
+      gap: agap,
+      start: agap.start,
+      end: agap.end,
+      onEnd: function () {
+        aud.pause();
+        if (lastgap < gaps.length) {
+          lastgap++;
+          var to = window.setTimeout(function () {
+            playSilence(lastgap);
+          }, 500);
+        }
+      }
+    });
+    lasttrackid = aud.getLastTrackEventId();
+    console.log(lasttrackid);
+    aud.play(agap.start);
+  };
+</script>
+
+</html>
