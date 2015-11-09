@@ -11,6 +11,7 @@
   <script src="lib/socket.io-1.3.7.js"></script>
   <style>
     body {
+      color: black;
       font-family: Hack, monospace;
     }
     
@@ -49,28 +50,28 @@
   </section>
   <section id="content">
     <audio src="intel020508.ogg" crossorigin="anonymous" controls></audio>
-    <video src="" <div id="mapping">
+    <div id="mapping">
       <div class="bar" id="curse"></div>
+    </div>
+
+    <h4>2007-08-01T21:30:00.000Z</h4>
+
+    <h3>Nomination of Donald M. Kerr to be Principal Deputy Director of National Intelligence</h3>
+    <div id="data">
+      <div id="message">Processing...</div>
+      <canvas id="graph" width="800" height="200"></canvas>
+      <div>currentTime: <span class="data" id="pos">0</span> interval: <span id="interval"> </span>
       </div>
 
-      <h4>2007-08-01T21:30:00.000Z</h4>
-
-      <h3>Nomination of Donald M. Kerr to be Principal Deputy Director of National Intelligence</h3>
-      <div id="data">
-        <div id="message">Processing...</div>
-        <canvas id="graph" width="800" height="200"></canvas>
-        <div>currentTime: <span class="data" id="pos">0</span> interval: <span id="interval"> </span>
-        </div>
-
-        <div>peak: <span class="data" id="highest">0</span>
-        </div>
-        <div>rms: <span class="data" id="engtxt">0</span>
-        </div>
-        <div>threshold: <span id="threshold"></span>
-        </div>
-        <div>silencesCollected: session: <span class="data" id="gaps">0</span> total: <span id="totalSil">waiting...</span>
-        </div>
+      <div>peak: <span class="data" id="highest">0</span>
       </div>
+      <div>rms: <span class="data" id="engtxt">0</span>
+      </div>
+      <div>threshold: <span id="threshold"></span>
+      </div>
+      <div>silencesCollected: session: <span class="data" id="gaps">0</span> total: <span id="totalSil">waiting...</span>
+      </div>
+    </div>
   </section>
 </body>
 
