@@ -1,0 +1,121 @@
+<!DOCTYPE HTML>
+<html>
+
+<head>
+  <title>3h10'59"</title>
+  <script src="lib/socket.io-1.3.7.js"></script>
+  <script src="lib/popcorn-complete.min.js"></script>
+  <style>
+    audio {
+      position: fixed;
+      right: 0;
+      top: 20px;
+    }
+    
+    .time {
+      background-color: black;
+      position: relative;
+      height: 5px;
+      margin-top: 1px;
+      cursor: progress;
+    }
+  </style>
+</head>
+
+<body>
+
+  <audio src="intel020508.ogg" crossorigin="anonymous" controls></audio>
+  <div id="container"></div>
+
+</body>
+<script>
+  var socket;
+  var aud = Popcorn('audio', {
+    frameAnimation: true
+  });
+  var duration;
+  var quietList = [];
+  var base;
+
+
+  var playQuiet = function (index) {
+    var quiet = quietList[index];
+    if (index >= quietList.length - 1) {
+      return false;
+
+    }
+
+    aud.on('timeupdate', function () {
+      if (this.currentTime() > quiet.end) {
+        aud.off('timeupdate');
+        console.log(this.currentTime() - quiet.end);
+        aud.pause(quiet.end);
+        window.setTimeout(function () {
+          playQuiet(index + 1);
+        }, 500);
+      }
+
+    });
+    aud.play(quiet.start);
+
+  };
+
+
+  var hoverPlay = function (start, end) {
+
+    aud.on('timeupdate', function () {
+      if (this.currentTime() > end) {
+        aud.off('timeupdate');
+        console.log(this.currentTime() - end);
+        aud.pause(end);
+
+      }
+
+    });
+    aud.play(start);
+
+  };
+
+
+
+
+  aud.on('loadedmetadata', function () {
+    console.log("metadata loaded");
+    duration = aud.duration();
+    socket = io.connect("http://localhost:3000");
+    socket.on('toDate', function (msg) {
+      var quiets = JSON.parse(msg);
+      for (var quiet of quiets) {
+        if (quiet.attention === "focus") {
+          quietList.push(quiet);
+          drawQuiet(quiet);
+        }
+      }
+      //playQuiet(0);
+
+    });
+  });
+
+
+  function drawQuiet(quiet) {
+    if (!base) {
+      base = quiet.start;
+    }
+    var line = document.createElement('div');
+    line.style.left = (quiet.start - base) * 10 + "px";
+    line.style.width = (quiet.end - quiet.start) * 10 + "px";
+    line.dataset.start = quiet.start;
+    line.dataset.end = quiet.end;
+    line.classList.add('time');
+    line.title = JSON.stringify(quiet);
+    document.querySelector('#container').appendChild(line);
+    line.onmouseover = function (event) {
+        et = event.target.dataset;
+        hoverPlay(et.start, et.end);
+
+      }
+      //console.log(quiet);
+  }
+</script>
+
+</html>
