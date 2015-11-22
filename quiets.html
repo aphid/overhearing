@@ -2,39 +2,57 @@
 <html>
 
 <head>
-  <title>3h10'59"</title>
+  <title>untitled</title>
   <script src="lib/socket.io-1.3.7.js"></script>
   <script src="lib/popcorn-complete.min.js"></script>
   <style>
-    audio {
+    video {
       position: fixed;
       right: 0;
-      top: 20px;
+      top: 0;
+      width: 100vw;
     }
     
     .time {
-      background-color: black;
+      background-color: #21dd1a;
       position: relative;
-      height: 5px;
-      margin-top: 1px;
+      height: 2px;
       cursor: progress;
+      min-width: 1px;
+      z-index: 99;
+    }
+    
+    .shot {
+      z-index: 20;
+      background-color: rgb(255, 45, 45);
+      position: absolute;
+      top: 0;
+      height: 10vh;
+      width: 1px;
+    }
+    
+    .new {
+      background-color: green;
     }
   </style>
 </head>
 
 <body>
 
-  <audio src="intel020508.ogg" crossorigin="anonymous" controls></audio>
+  <video src="../shot/130312.mp4" crossorigin="anonymous">
+  </video>
   <div id="container"></div>
 
 </body>
 <script>
+  var hearing = 'intel20130312';
   var socket;
-  var aud = Popcorn('audio', {
+  var aud = Popcorn('video', {
     frameAnimation: true
   });
   var duration;
   var quietList = [];
+  var shotList = [];
   var base;
 
 
@@ -82,39 +100,148 @@
   aud.on('loadedmetadata', function () {
     console.log("metadata loaded");
     duration = aud.duration();
+    var hours = parseInt(duration / 3600) % 24;
+    var minutes = parseInt(duration / 60) % 60;
+    var seconds = Math.round(duration % 60);
+    document.title = hours + "h" + minutes + "'" + seconds + '"';
     socket = io.connect("http://localhost:3000");
+    socket.emit('authenticate', {
+      hearing: hearing
+    });
+    socket.emit('subscribe', {
+      name: 'silence',
+      hearing: hearing
+    });
+    socket.emit('subscribe', {
+      name: 'shot',
+      hearing: hearing
+    });
     socket.on('toDate', function (msg) {
-      var quiets = JSON.parse(msg);
-      for (var quiet of quiets) {
-        if (quiet.attention === "focus") {
-          quietList.push(quiet);
-          drawQuiet(quiet);
-        }
+      var response = msg;
+      console.log(response);
+      if (response.type === 'silence') {
+        console.log(response.data.length + " silences")
+        drawQuiets(response.data);
+      } else if (response.type === 'shot') {
+        console.log(response.data.length + " shots")
+
+        drawShots(response.data);
+      } else {
+        console.log(response.type);
+        console.log(response);
+
       }
       //playQuiet(0);
 
     });
+
+    socket.on('silence', function (msg) {
+      console.log('got a quiet');
+      drawQuiet(msg, true);
+    });
+    socket.on('shot', function (msg) {
+      console.log('got a shot');
+      drawShot(msg, true);
+    });
+
   });
 
-
-  function drawQuiet(quiet) {
-    if (!base) {
-      base = quiet.start;
+  function drawQuiets(quiets, fresh) {
+    console.log('drawing quiets')
+    for (var quiet of quiets) {
+      if (quiet.attention === "focus") {
+        quietList.push(quiet);
+        drawQuiet(quiet);
+      }
     }
+  }
+
+
+  function drawShots(shots, fresh) {
+    console.log('drawing shots');
+    for (var shot of shots) {
+      shotList.push(shot);
+      drawShot(shot);
+    }
+  }
+
+  function drawQuiet(quiet, fresh) {
+    console.log(quiet);
     var line = document.createElement('div');
-    line.style.left = (quiet.start - base) * 10 + "px";
+    line.style.left = quiet.start * 10 + "px";
     line.style.width = (quiet.end - quiet.start) * 10 + "px";
     line.dataset.start = quiet.start;
     line.dataset.end = quiet.end;
     line.classList.add('time');
     line.title = JSON.stringify(quiet);
-    document.querySelector('#container').appendChild(line);
     line.onmouseover = function (event) {
-        et = event.target.dataset;
-        hoverPlay(et.start, et.end);
+      et = event.target.dataset;
+      hoverPlay(et.start, et.end);
+    }
+    if (fresh) {
+      console.log('fresh insert at ' + quiet.start);
+      for (var time of document.querySelectorAll('.time')) {
+        if (quiet.start < time.dataset.start) {
+          var pn = time.parentNode;
+          console.log('inserting at ' + pn);
+          pn.insertBefore(line, time);
+          var rect = line.getBoundingClientRect();
 
+          console.log(rect);
+          if (!isElVis(rect)) {
+            window.scrollBy(rect.left, rect.top);
+          }
+          console.log("NEW");
+          hoverPlay(quiet.start, quiet.end);
+          return true;
+        }
       }
-      //console.log(quiet);
+
+    }
+    document.querySelector('#container').appendChild(line);
+  }
+
+  function isElVis(rect) {
+    return (
+      rect.top >= 0 &&
+      rect.left >= 0 &&
+      rect.bottom <= (window.innerHeight || document.documentElement.clientHeight) && /*or $(window).height() */
+      rect.right <= (window.innerWidth || document.documentElement.clientWidth) /*or $(window).width() */
+    );
+  }
+
+
+
+  function drawShot(shot, fresh) {
+    if (!base) {
+      base = shot.boundary;
+    }
+    var line = document.createElement('div');
+    line.style.top = "0";
+    line.style.left = (shot.boundary - base) * 10 + "px";
+    line.dataset.start = shot.boundary;
+    line.classList.add('time', 'shot');
+    line.title = JSON.stringify(shot);
+    line.onmouseover = function (event) {
+      et = event.target.dataset;
+      hoverPlay(et.start - 0.25, et.start);
+    }
+    if (fresh) {
+      console.log('fresh insert at ' + shot.boundary);
+      for (var time of document.querySelectorAll('.time')) {
+        if (shot.start < time.dataset.start) {
+          var pn = time.parentNode;
+          console.log('inserting at ' + pn);
+          pn.insertBefore(line, time);
+          var rect = element.getBoundingClientRect();
+          window.scrollTo(rect.left, rect.top);
+          console.log("NEW");
+          return true;
+        }
+      }
+
+    }
+    document.querySelector('#container').appendChild(line);
   }
 </script>
 
