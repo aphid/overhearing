@@ -170,14 +170,21 @@
            hearing: hearing
        });
        */
-
+       console.log("metadata loaded");
        document.querySelector("#content").style.display = "block";
 
        aud.off('loadedmetadata');
        msg.textContent = "Seeking first vocalization: rough";
-       seekFwd();
+       document.querySelector("video").setAttribute("controls", true);
+	   
    });
 
+   aud.on("play", function(){
+       console.log("here we go...");
+       aud.pause(1370);
+       aud.off("play");
+       seekFwd();
+   });
 
    aud.on('seeked', function () {
        var curse = document.querySelector("#curse");
