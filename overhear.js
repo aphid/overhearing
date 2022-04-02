@@ -51,16 +51,16 @@ function drawBar(i, h) {
 }
 
 
-window.onblur = function () {
+window.onblur = function() {
     attention = "blur";
 };
-window.onfocus = function () {
+window.onfocus = function() {
     attention = "focus";
 };
 var localGaps, interval, rmsThreshold, gapThreshold, audioCtx, source, engs, rollofs, mopts, meyda, last, aud, lasttrackid, stream;
 
 
-var renderEngs = function () {
+var renderEngs = function() {
     ctx.clearRect(0, 0, canvas.width, canvas.height);
 
     for (var i = 0; i < engs.length; i++) {
@@ -78,15 +78,28 @@ var renderEngs = function () {
 
 var aud = Popcorn('video');
 
-var seekFwd = function () {
+var seekFwd = async function() {
 
-    aud.play(tempTime);
+    await playing(tempTime);
     tempTime = tempTime + interval;
     requestAnimationFrame(frametest);
 };
 var stop = false;
 var gaps = [];
 var tempGap = {};
+
+async function playing(time) {
+    return new Promise(function(resolve, reject) {
+        aud.media.addEventListener('playing', function(e) {
+            resolve(); // done
+        }, {
+            once: true
+        });
+        aud.play(time);
+
+    });
+
+}
 
 function exactStart(time) {
     engs = [];
@@ -107,7 +120,7 @@ function setupEvents() {
     interval = 8; //seconds
     rmsThreshold = 0.05; //in whatever RMS are measured in
     gapThreshold = 0.15; //seconds
-    audioCtx = new (window.AudioContext || window.webkitAudioContext)();
+    audioCtx = new(window.AudioContext || window.webkitAudioContext)();
     source = audioCtx.createMediaElementSource(document.querySelector('video'));
     engs = [];
     rollofs = [];
@@ -156,7 +169,7 @@ function setupEvents() {
 */
 }
 
-aud.on('loadedmetadata', function () {
+aud.on('loadedmetadata', function() {
     duration = aud.duration();
     //socket = io.connect("http://localhost:3000");
     //tempTime = Math.random() * aud.duration();
@@ -182,7 +195,7 @@ aud.on('loadedmetadata', function () {
 
 });
 
-aud.on("play", function () {
+aud.on("play", function() {
     console.log("here we go...");
     aud.pause(1370);
     aud.off("play");
@@ -191,7 +204,7 @@ aud.on("play", function () {
     seekFwd();
 });
 
-aud.on('seeked', function () {
+aud.on('seeked', function() {
     var curse = document.querySelector("#curse");
     curse.style.left = (aud.currentTime() / duration) * 100 + "%";
 });
@@ -259,13 +272,13 @@ function frametest() {
 
 
 
-var gap = function (time) {
+var gap = function(time) {
     if (!tempGap.start) {
         tempGap.start = time;
     }
 };
 
-var transmitGap = function (gap) {
+var transmitGap = function(gap) {
     console.log(attention);
     /* socket.emit('intel', {
         'type': 'silence',
@@ -278,7 +291,7 @@ var transmitGap = function (gap) {
 
 
 
-var notGap = function (time) {
+var notGap = function(time) {
     if (tempGap.start) {
         tempGap.end = time;
         var difference = tempGap.end - tempGap.start;
@@ -293,7 +306,7 @@ var notGap = function (time) {
     }
 };
 
-aud.on("ended", function () {
+aud.on("ended", function() {
     stop = true;
     //gaps = shuffleArray(gaps);
     //playSilence();
@@ -302,7 +315,7 @@ aud.on("ended", function () {
 var lastgap = 0;
 
 
-var playSilence = function (index) {
+var playSilence = function(index) {
     if (!index) {
         index = 0;
     }
@@ -314,11 +327,11 @@ var playSilence = function (index) {
         gap: agap,
         start: agap.start,
         end: agap.end,
-        onEnd: function () {
+        onEnd: function() {
             aud.pause();
             if (lastgap < gaps.length) {
                 lastgap++;
-                var to = window.setTimeout(function () {
+                var to = window.setTimeout(function() {
                     playSilence(lastgap);
                 }, 500);
             }
