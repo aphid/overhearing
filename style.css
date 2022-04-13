@@ -1,64 +1,64 @@
+@font-face {
+    font-family: 'tty';
+    src: url('glass_tty_vt220.ttf');
+}
 
-    @font-face {
-      font-family: 'tty';
-      src: url('glass_tty_vt220.ttf');
-    }
-    
-    * {
-      box-sizing: border-box;
-      margin: 0;
-      padding: 0;
-      font-family: tty;
-    }
-    
-    #content {
-      display: none;
-    }
-    
-    body {
-      background-color: #0f0e0f;
-      color: papayawhip;
-    }
-    
-    audio {
-      position: fixed;
-      bottom: 0;
-      width: 100%;
-      padding-top: 15px;
-    }
-    
-    h3 {
-      padding-left: 3px;
-      font-size: 2.2em;
-    }
-    
-    h4 {
-      padding-left: 3px;
-      text-decoration: underline;
-    }
-    
-    #data {
-      width: 100%;
-      background: #16161d;
-      min-height: 300px;
-      font-size: 1.5em;
-      margin: 0 auto;
-      margin-bottom: 100px;
-    }
-  }
-  progress {
+* {
+    box-sizing: border-box;
+    margin: 0;
+    padding: 0;
+    font-family: tty;
+}
+
+#content {
+    display: none;
+}
+
+body {
+    background-color: #0f0e0f;
+    color: papayawhip;
+}
+
+audio {
+    position: fixed;
+    bottom: 0;
+    width: 100%;
+    padding-top: 15px;
+}
+
+h3 {
+    padding-left: 3px;
+    font-size: 2.2em;
+}
+
+h4 {
+    padding-left: 3px;
+    text-decoration: underline;
+}
+
+#data {
+    width: 100%;
+    min-height: 300px;
+    font-size: 1.5em;
+    margin: 0 auto;
+    margin-bottom: 100px;
+}
+
+
+progress {
     -moz-orient: vertical;
     border: 0;
     background: transparent;
     transition: width 0.1s;
     height: 350px;
     width: 20px;
-  }
-  #welcome {
+}
+
+#welcome {
     width: 100%;
     background-color: #050505;
     padding-left: 3px;
     font-size: 1.3em;
     margin-bottom: 10px;
     padding-top: 9px;
-  }
+}
