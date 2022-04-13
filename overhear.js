@@ -114,8 +114,20 @@ function exactStart(time) {
 
 
 
+async function createReverb(ctx) {
+    let convolver = ctx.createConvolver();
 
-function setupEvents() {
+    // load impulse response from file
+    let response = await fetch("lodge.wav");
+    let arraybuffer = await response.arrayBuffer();
+    convolver.buffer = await ctx.decodeAudioData(arraybuffer);
+
+    return convolver;
+}
+
+
+
+async function setupEvents() {
     localGaps = 0;
     interval = 8; //seconds
     rmsThreshold = 0.05; //in whatever RMS are measured in
@@ -124,9 +136,14 @@ function setupEvents() {
     source = audioCtx.createMediaElementSource(document.querySelector('video'));
     engs = [];
     rollofs = [];
+    let reverb = await createReverb(audioCtx);
+
+
     //var gainNode = audioCtx.createGain();
     //source.connect(gainNode);
-    source.connect(audioCtx.destination);
+    source.connect(reverb);
+    reverb.connect(audioCtx.destination);
+
 
     //var meyda = new Meyda(audioCtx, source, 512);
     mopts = {
@@ -138,6 +155,7 @@ function setupEvents() {
         //"callback": Function // optional callback in which to receive the features for each buffer
     }
     meyda = Meyda.createMeydaAnalyzer(mopts);
+    console.log(meyda);
     meyda.start();
     stream = aud.media.src.split('/').pop().replace('.ogg', '');
     last = 0;
@@ -169,7 +187,8 @@ function setupEvents() {
 */
 }
 
-aud.on('loadedmetadata', function() {
+
+aud.media.addEventListener('loadedmetadata', function() {
     duration = aud.duration();
     //socket = io.connect("http://localhost:3000");
     //tempTime = Math.random() * aud.duration();
@@ -193,13 +212,23 @@ aud.on('loadedmetadata', function() {
     msg.textContent = "Seeking first vocalization: rough";
     document.querySelector("video").setAttribute("controls", true);
 
+}, {
+    once: true
+});
+
+
+aud.media.addEventListener("loadeddata", function() {
+    console.log("canplay");
+    setupEvents();
+
+}, {
+    once: true
 });
 
 aud.on("play", function() {
     console.log("here we go...");
     aud.pause(1370);
     aud.off("play");
-    setupEvents();
 
     seekFwd();
 });
@@ -211,7 +240,15 @@ aud.on('seeked', function() {
 
 
 
-function frametest() {
+async function sleep(ms) {
+    return new Promise(function(resolve, reject) {
+        setTimeout(() => {
+            resolve(0)
+        }, ms);
+    });
+}
+
+async function frametest() {
     modetxt.textContent = mode;
     if (stop === true) {
         aud.pause();
@@ -255,7 +292,7 @@ function frametest() {
                 rmsThreshold = 0.02;
                 interval = 0.003;
             } else if (mode === "medium") {
-                notGap(aud.currentTime());
+                await notGap(aud.currentTime());
 
             }
             engtxt.classList.remove('low');
@@ -278,25 +315,26 @@ var gap = function(time) {
     }
 };
 
-var transmitGap = function(gap) {
-    console.log(attention);
+var transmitGap = async function(gap) {
     /* socket.emit('intel', {
         'type': 'silence',
         'hearing': hearing,
         'start': gap.start,
         'end': gap.end,
         'attention': attention
-    }); */
+    }); 
+    */
 };
 
 
 
-var notGap = function(time) {
+var notGap = async function(time) {
     if (tempGap.start) {
         tempGap.end = time;
         var difference = tempGap.end - tempGap.start;
         if (difference >= gapThreshold) {
-            transmitGap(tempGap);
+            await transmitGap(tempGap);
+            await playOnce(tempGap);
             localGaps++;
             gapstxt.textContent = localGaps;
             totalsil.textContent = totalSilences;
@@ -305,6 +343,43 @@ var notGap = function(time) {
         tempGap = {};
     }
 };
+
+
+async function playOnce(thegap) {
+    console.log("playing gap", thegap);
+    await sleep(1500);
+    return new Promise(async function(resolve) {
+        let start = thegap.start;
+        let end = thegap.end;
+        aud.media.currentTime = start;
+        aud.media.addEventListener("timeupdate", async function tim(e) {
+            if (aud.media.currentTime > end) {
+                //aud.currentTime = start;
+                aud.pause();
+                aud.media.removeEventListener("timeupdate", tim);
+                await sleep(1500);
+
+                resolve();
+            }
+        });
+        aud.play();
+
+    })
+};
+
+
+async function moveVid(time) {
+    return new Promise(function(resolve) {
+        aud.addEventListener("timeupdate", function() {
+            return (resolve);
+        }, {
+            once: true
+        });
+
+        aud.currentTime = time;
+    });
+
+}
 
 aud.on("ended", function() {
     stop = true;
